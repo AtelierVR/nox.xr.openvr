@@ -2,8 +2,8 @@ using Cysharp.Threading.Tasks;
 using Nox.CCK.Mods.Cores;
 using Nox.CCK.Mods.Initializers;
 using Nox.CCK.Utils;
+using Nox.CCK.XR;
 using Nox.XR.Loaders;
-using Nox.XR.Runtime.Loaders;
 using Unity.XR.OpenVR;
 using UnityEngine.XR.Management;
 
@@ -21,6 +21,11 @@ namespace Nox.XR.OpenVR {
 	/// L'assembly n'est compilée que si le paquet Valve est installé
 	/// (<c>defineConstraints: NOX_HAS_OPENVR</c>) : sinon nox.xr retombe simplement sur
 	/// <c>XRManagementLoaderProvider</c>.
+	/// </para>
+	///
+	/// <para>
+	/// nox.xr ne démarre jamais « le premier loader qui répond » : <see cref="Initialize"/> impose
+	/// <see cref="OpenVRLoader"/>, donc ce provider ne peut pas se retrouver à piloter OpenXR.
 	/// </para>
 	/// </summary>
 	public sealed class OpenVRLoaderProvider : IXRLoaderEditorProvider, IMainModInitializer {
@@ -48,16 +53,11 @@ namespace Nox.XR.OpenVR {
 		public XRLoader Loader
 			=> XRLoaderAssets.Find<OpenVRLoader>();
 
-		public bool IsValid {
-			get {
-				if (!IsPlatformSupported(PlatformExtensions.CurrentPlatform))
-					return false;
-
-				// Le loader doit être celui configuré dans XR Plug-in Management, sinon
-				// XRManagementLoader.StartAsync démarrerait autre chose que ce qu'on annonce.
-				return XRManagementLoader.HasLoader<OpenVRLoader>();
-			}
-		}
+		public bool IsValid
+			=> IsPlatformSupported(PlatformExtensions.CurrentPlatform)
+				// Sans loader OpenVR configuré, XR Plug-in Management n'a rien à démarrer :
+				// ce provider s'efface (`StartAsync<OpenVRLoader>()` échouerait de toute façon).
+				&& XRManagementLoader.HasLoader<OpenVRLoader>();
 
 		/// <summary>
 		/// Le plugin OpenVR de Valve ne fournit de loader que pour Windows et Linux.
@@ -65,10 +65,10 @@ namespace Nox.XR.OpenVR {
 		public static bool IsPlatformSupported(Platform platform)
 			=> platform is Platform.Windows or Platform.Linux;
 
-		public UniTask<bool> InitializeAsync()
-			=> XRManagementLoader.StartAsync();
+		public UniTask<bool> Initialize()
+			=> XRManagementLoader.StartAsync<OpenVRLoader>();
 
-		public void Deinitialize()
+		public UniTask Deinitialize()
 			=> XRManagementLoader.Stop();
 	}
 }
