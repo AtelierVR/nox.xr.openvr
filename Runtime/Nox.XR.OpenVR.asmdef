@@ -1,0 +1,33 @@
+{
+  "name": "Nox.XR.OpenVR",
+  "rootNamespace": "",
+  "references": [
+    "Nox.CCK",
+    "UniTask",
+    "Nox.XR",
+    "Nox.XR.Runtime",
+    "Unity.XR.Management",
+    "Unity.XR.OpenVR"
+  ],
+  "includePlatforms": [
+    "Editor",
+    "LinuxStandalone64",
+    "WindowsStandalone64"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [
+    "NOX_HAS_OPENVR"
+  ],
+  "versionDefines": [
+    {
+      "name": "com.valvesoftware.unity.openvr",
+      "expression": "",
+      "define": "NOX_HAS_OPENVR"
+    }
+  ],
+  "noEngineReferences": false
+}

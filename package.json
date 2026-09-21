@@ -1,0 +1,9 @@
+{
+  "name": "nox.xr.openvr",
+  "displayName": "Nox - XR OpenVR Loader",
+  "version": "1.0.0",
+  "description": "OpenVR (SteamVR) loader for Nox XR (Windows, Linux).",
+  "dependencies": {
+    "com.valvesoftware.unity.openvr": "https://github.com/ValveSoftware/unity-xr-plugin.git?path=/com.valve.openvr"
+  }
+}
