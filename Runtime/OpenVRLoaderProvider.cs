@@ -1,9 +1,11 @@
 using Cysharp.Threading.Tasks;
+using Nox.CCK.Mods.Cores;
 using Nox.CCK.Mods.Initializers;
 using Nox.CCK.Utils;
 using Nox.XR.Loaders;
 using Nox.XR.Runtime.Loaders;
 using Unity.XR.OpenVR;
+using UnityEngine.XR.Management;
 
 namespace Nox.XR.OpenVR {
 	/// <summary>
@@ -21,7 +23,16 @@ namespace Nox.XR.OpenVR {
 	/// <c>XRManagementLoaderProvider</c>.
 	/// </para>
 	/// </summary>
-	public sealed class OpenVRLoaderProvider : IXRLoaderProvider, IMainModInitializer {
+	public sealed class OpenVRLoaderProvider : IXRLoaderEditorProvider, IMainModInitializer {
+		/// <summary>
+		/// nox.xr s'initialise avant ses mods de loader : c'est ici qu'on lui signale le nôtre.
+		/// </summary>
+		public void OnInitializeMain(IMainModCoreAPI api)
+			=> XRLoaderEditorRegistry.Register(this);
+
+		public void OnDisposeMain()
+			=> XRLoaderEditorRegistry.Unregister(this);
+
 		/// <summary>Priorité du loader OpenVR : sous OpenXR (20), au-dessus du repli générique (0).</summary>
 		public const int DefaultPriority = 10;
 
@@ -30,6 +41,12 @@ namespace Nox.XR.OpenVR {
 
 		public int Priority
 			=> DefaultPriority;
+
+		public bool IsSupported(Platform platform)
+			=> IsPlatformSupported(platform);
+
+		public XRLoader Loader
+			=> XRLoaderAssets.Find<OpenVRLoader>();
 
 		public bool IsValid {
 			get {
