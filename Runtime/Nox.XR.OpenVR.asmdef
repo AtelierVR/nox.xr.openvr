@@ -3,11 +3,13 @@
   "rootNamespace": "",
   "references": [
     "Nox.CCK",
+    "Nox.CCK.XR",
     "UniTask",
     "Nox.XR",
-    "Nox.CCK.XR",
+    "Nox.KeyBinding",
     "Unity.XR.Management",
-    "Unity.XR.OpenVR"
+    "Unity.XR.OpenVR",
+    "Unity.InputSystem"
   ],
   "includePlatforms": [
     "Editor",

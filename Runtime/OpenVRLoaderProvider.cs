@@ -3,7 +3,9 @@ using Nox.CCK.Mods.Cores;
 using Nox.CCK.Mods.Initializers;
 using Nox.CCK.Utils;
 using Nox.CCK.XR;
+using Nox.XR.Bindings;
 using Nox.XR.Loaders;
+using Nox.XR.OpenVR.Bindings;
 using Unity.XR.OpenVR;
 using UnityEngine.XR.Management;
 
@@ -29,20 +31,46 @@ namespace Nox.XR.OpenVR {
 	/// </para>
 	/// </summary>
 	public sealed class OpenVRLoaderProvider : IXRLoaderEditorProvider, IMainModInitializer {
-		/// <summary>
-		/// nox.xr s'initialise avant ses mods de loader : c'est ici qu'on lui signale le nôtre.
-		/// </summary>
-		public void OnInitializeMain(IMainModCoreAPI api)
-			=> XRLoaderEditorRegistry.Register(this);
+		/// <summary>Bindings OpenVR, exposés à nox.xr tant que le loader est initialisé.</summary>
+		private IBinding _binding;
 
-		public void OnDisposeMain()
-			=> XRLoaderEditorRegistry.Unregister(this);
+		/// <summary>
+		/// nox.xr s'initialise avant ses mods de loader : c'est ici qu'on lui signale le nôtre, et
+		/// qu'on construit les bindings que <see cref="Binding"/> exposera.
+		/// </summary>
+		public void OnInitializeMain(IMainModCoreAPI api) {
+			XRLoaderEditorRegistry.Register(this);
+
+			// Les packs de bindings viennent des assets du mod : chargés avant tout Refresh().
+			OpenVRBindingPacks.Load(api?.AssetAPI);
+			_binding = new OpenVRBindings(api);
+		}
+
+		public void OnDisposeMain() {
+			XRLoaderEditorRegistry.Unregister(this);
+			_binding?.Clear();
+			_binding = null;
+			OpenVRBindingPacks.Clear();
+		}
+
+		/// <summary>
+		/// Bindings du runtime OpenVR : c'est ce runtime qui les enregistre et répond aux lectures
+		/// (<see cref="OpenVRBindings"/>), nox.xr ne fait que déclencher leur (re)liaison.
+		/// </summary>
+		public IBinding Binding
+			=> _binding;
 
 		/// <summary>Priorité du loader OpenVR : sous OpenXR (20), au-dessus du repli générique (0).</summary>
 		public const int DefaultPriority = 10;
 
+		/// <summary>
+		/// Identifiant du loader. C'est aussi celui que nox.xr cherche côté bindings
+		/// (<see cref="OpenVRBindingProvider.Id"/>), pour associer le provider au loader actif.
+		/// </summary>
+		public const string DefaultId = "openvr";
+
 		public string Id
-			=> "openvr";
+			=> DefaultId;
 
 		public int Priority
 			=> DefaultPriority;
@@ -53,11 +81,18 @@ namespace Nox.XR.OpenVR {
 		public XRLoader Loader
 			=> XRLoaderAssets.Find<OpenVRLoader>();
 
-		public bool IsValid
+		/// <summary>
+		/// Indique si OpenVR est réellement utilisable ici : plateforme supportée <b>et</b> loader
+		/// déclaré dans XR Plug-in Management. Sert au loader comme au provider de bindings.
+		/// </summary>
+		public static bool IsAvailable
 			=> IsPlatformSupported(PlatformExtensions.CurrentPlatform)
 				// Sans loader OpenVR configuré, XR Plug-in Management n'a rien à démarrer :
 				// ce provider s'efface (`StartAsync<OpenVRLoader>()` échouerait de toute façon).
 				&& XRManagementLoader.HasLoader<OpenVRLoader>();
+
+		public bool IsValid
+			=> IsAvailable;
 
 		/// <summary>
 		/// Le plugin OpenVR de Valve ne fournit de loader que pour Windows et Linux.
