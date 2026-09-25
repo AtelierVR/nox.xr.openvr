@@ -1,3 +1,4 @@
+using System.Threading.Tasks;
 using Cysharp.Threading.Tasks;
 using Nox.CCK.Mods.Cores;
 using Nox.CCK.Mods.Initializers;
@@ -32,7 +33,7 @@ namespace Nox.XR.OpenVR {
 	/// </summary>
 	public sealed class OpenVRLoaderProvider : IXRLoaderEditorProvider, IMainModInitializer {
 		/// <summary>Bindings OpenVR, exposés à nox.xr tant que le loader est initialisé.</summary>
-		private IBinding _binding;
+		private OpenVRBindings _binding;
 
 		/// <summary>
 		/// nox.xr s'initialise avant ses mods de loader : c'est ici qu'on lui signale le nôtre, et
@@ -40,17 +41,12 @@ namespace Nox.XR.OpenVR {
 		/// </summary>
 		public void OnInitializeMain(IMainModCoreAPI api) {
 			XRLoaderEditorRegistry.Register(this);
-
-			// Les packs de bindings viennent des assets du mod : chargés avant tout Refresh().
-			OpenVRBindingPacks.Load(api?.AssetAPI);
-			_binding = new OpenVRBindings(api);
+			_binding = new OpenVRBindings(this);
 		}
 
 		public void OnDisposeMain() {
 			XRLoaderEditorRegistry.Unregister(this);
-			_binding?.Clear();
-			_binding = null;
-			OpenVRBindingPacks.Clear();
+			_binding.Dispose();
 		}
 
 		/// <summary>
@@ -98,12 +94,19 @@ namespace Nox.XR.OpenVR {
 		/// Le plugin OpenVR de Valve ne fournit de loader que pour Windows et Linux.
 		/// </summary>
 		public static bool IsPlatformSupported(Platform platform)
-			=> platform is Platform.Windows or Platform.Linux;
+			=> platform == Platform.Windows 
+				|| platform == Platform.Linux;
 
-		public UniTask<bool> Initialize()
-			=> XRManagementLoader.StartAsync<OpenVRLoader>();
+		public async UniTask<bool> Initialize() {
+    		if (!await XRManagementLoader.StartAsync<OpenVRLoader>())
+        		return false;
+    		await _binding.Initialize();    
+    		return true;
+		}
 
-		public UniTask Deinitialize()
-			=> XRManagementLoader.Stop();
+		public async UniTask Deinitialize() {
+			await XRManagementLoader.Stop();
+			await _binding.Deinitialize();
+		}
 	}
 }

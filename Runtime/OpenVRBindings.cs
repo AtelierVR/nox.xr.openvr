@@ -1,85 +1,72 @@
 using System;
 using System.Collections.Generic;
-using Nox.CCK.Mods.Cores;
-using Nox.KeyBindings;
+using Cysharp.Threading.Tasks;
 using Nox.XR.Bindings;
 using UnityEngine;
-using UnityEngine.InputSystem;
+using Valve.VR;
 using Logger = Nox.CCK.Utils.Logger;
 
-namespace Nox.XR.OpenVR {
-	/// <summary>
-	/// Implémentation <see cref="IBinding"/> d'OpenVR.
-	///
-	/// <para>
-	/// Enregistre auprès du système de key bindings les chemins délivrés par
-	/// <see cref="OpenVRBindingProvider"/> (choisis selon le modèle de manette connecté) et répond
-	/// aux lectures en interrogeant directement les actions : c'est le mod qui possède ses
-	/// bindings, nox.xr ne fait que déclencher <see cref="Refresh"/> et relayer les valeurs.
-	/// </para>
-	/// </summary>
-	public sealed class OpenVRBindings : IBinding {
-		private readonly IMainModCoreAPI _api;
 
-		/// <summary>Poignées des actions enregistrées, par clé de binding.</summary>
-		private readonly Dictionary<string, IKeyBinding> _handles = new();
+namespace Nox.XR.OpenVR.Bindings {
+    /// <summary>
+    /// Implémentation IBinding pour le runtime OpenVR (SteamVR).
+    /// </summary>
+    public sealed class OpenVRBindings : IBinding, IDisposable {
+        private readonly OpenVRLoaderProvider _provider;
 
-		/// <summary>Binding logique de chaque clé : donne le type de valeur attendu.</summary>
-		private readonly Dictionary<string, XRBinding> _bindings = new();
+        /// <summary>Handles for SteamVR actions, by action path.</summary>
+        private readonly Dictionary<string, SteamVR_Action> _handles = new();
 
-		public OpenVRBindings(IMainModCoreAPI api)
-			=> _api = api;
+        public OpenVRBindings(OpenVRLoaderProvider provider)
+            => _provider = provider;
 
-		private IKeyBindingManager Manager
-			=> _api?.ModAPI?.GetMod("keybinding")?.GetInstance<IKeyBindingManager>();
+        public async UniTask Initialize() {
+            SteamVR.Initialize();
+            SteamVR_Input.Initialize();
+            await UniTask.CompletedTask;
+        }
 
-		public void Refresh() {
-			Clear();
+        public T Get<T>(string path) where T : struct {
+            if (!_handles.TryGetValue(path, out SteamVR_Action action)) {
+                if (SteamVR_Input.actions != null)
+                    foreach (var a in SteamVR_Input.actions)
+                        if (a.fullPath == path || a.fullPath.EndsWith(path)) {
+                            action = a;
+                            break;
+                        }
 
-			var manager = Manager;
-			if (manager == null) {
-				Logger.LogWarning("OpenVR: key binding manager not available, XR inputs are left unbound.");
-				return;
-			}
+                if (action != null)
+                    _handles[path] = action;
+                else return default;
+            }
 
-			foreach (var (binding, path) in OpenVRBindingProvider.GetBindings()) {
-				var key    = binding.GetKey();
-				var handle = manager.AddKeyBinding(key, path, binding.GetCategory());
-				if (handle == null) {
-					Logger.LogError($"OpenVR: failed to register key binding {key} ({path})");
-					continue;
-				}
+            try {
+                // Determine the input source from the action
+                SteamVR_Input_Sources s = SteamVR_Input_Sources.Any;
+                
+                if (action is SteamVR_Action_Boolean a0 && typeof(T) == typeof(bool))
+                    return (T)(object)a0[s].state;
+                else if (action is SteamVR_Action_Single a1 && typeof(T) == typeof(float))
+                    return (T)(object)a1[s].axis;
+                else if (action is SteamVR_Action_Vector2 a2 && typeof(T) == typeof(Vector2))
+                    return (T)(object)a2[s].axis;
+                else if (action is SteamVR_Action_Pose a3 && typeof(T) == typeof(Vector3))
+                    return (T)(object)a3[s].localPosition;
+                else if (action is SteamVR_Action_Pose a4 && typeof(T) == typeof(Quaternion))
+                    return (T)(object)a4[s].localRotation;
+            } catch (Exception ex) {
+                Logger.LogWarning($"OpenVRBindings.Get failed for action {path}: {ex.Message}", tag: nameof(OpenVRBindings));
+            }
 
-				// Lecture directe de l'action : aucun écouteur ici, nox.xr lit à la demande.
-				handle.GetAction()?.Enable();
-				_handles[key]  = handle;
-				_bindings[key] = binding;
-			}
+            return default;
+        }
 
-			Logger.LogDebug($"OpenVR: {_handles.Count} key binding(s) registered.");
-		}
+        public async UniTask Deinitialize() {
+            _handles.Clear();
+            await UniTask.CompletedTask;
+        }
 
-		public void Clear() {
-			var manager = Manager;
-			if (manager != null)
-				foreach (var handle in _handles.Values)
-					manager.RemoveKeyBinding(handle.GetId(), handle.GetCategory());
-
-			_handles.Clear();
-			_bindings.Clear();
-		}
-
-		public T Get<T>(string key) where T : struct {
-			if (!_bindings.TryGetValue(key, out var binding))
-				return default;
-
-			// Évite que ReadValue<T> lève quand le type demandé ne correspond pas au binding.
-			var isVector2 = binding.GetValue() == XRBindingValue.Vector2;
-			if (isVector2 != (typeof(T) == typeof(Vector2)))
-				return default;
-
-			var action = _handles.TryGetValue(key, out var handle) ? handle.GetAction() : null;
-			return action is { enabled: true } ? action.ReadValue<T>() : default;
-		}
-	}
+        public void Dispose()
+            => Deinitialize().Forget();
+    }
 }
