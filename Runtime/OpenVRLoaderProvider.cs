@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using Cysharp.Threading.Tasks;
 using Nox.CCK.Mods.Cores;
 using Nox.CCK.Mods.Initializers;
@@ -35,19 +34,41 @@ namespace Nox.XR.OpenVR {
 		/// <summary>Bindings OpenVR, exposés à nox.xr tant que le loader est initialisé.</summary>
 		private OpenVRBindings _binding;
 
+		/// <summary><c>true</c> une fois le loader OpenVR démarré par <see cref="Initialize"/>.</summary>
+		private bool _started;
+
 		/// <summary>
-		/// nox.xr s'initialise avant ses mods de loader : c'est ici qu'on lui signale le nôtre, et
-		/// qu'on construit les bindings que <see cref="Binding"/> exposera.
+		/// nox.xr s'initialise <b>avant</b> ses mods de loader : son initialiseur client peut donc
+		/// démarrer la XR via <see cref="Initialize"/> avant que cet initialiseur principal ne
+		/// construise les bindings que <see cref="Binding"/> exposera. D'où la création à la demande
+		/// (<see cref="EnsureBindings"/>).
 		/// </summary>
 		public void OnInitializeMain(IMainModCoreAPI api) {
 			XRLoaderEditorRegistry.Register(this);
-			_binding = new OpenVRBindings(this);
+
+			// Les bindings sont créés par `Initialize` : s'ils sont déjà là, ils sont déjà
+			// initialisés. Sinon on les crée, et on ne les initialise tout de suite que si la XR
+			// tourne déjà (sinon c'est `Initialize` qui s'en chargera).
+			var created = _binding == null;
+			EnsureBindings();
+
+			if (created && _started)
+				_binding.Initialize().Forget();
 		}
 
 		public void OnDisposeMain() {
 			XRLoaderEditorRegistry.Unregister(this);
-			_binding.Dispose();
+			_binding?.Dispose();
+			_binding = null;
+			_started = false;
 		}
+
+		/// <summary>
+		/// Crée les bindings si besoin. Contrairement à OpenXR, ils ne dépendent d'aucune API :
+		/// ils peuvent donc être créés avant même l'initialiseur principal.
+		/// </summary>
+		private OpenVRBindings EnsureBindings()
+			=> _binding ??= new OpenVRBindings(this);
 
 		/// <summary>
 		/// Bindings du runtime OpenVR : c'est ce runtime qui les enregistre et répond aux lectures
@@ -97,16 +118,36 @@ namespace Nox.XR.OpenVR {
 			=> platform == Platform.Windows 
 				|| platform == Platform.Linux;
 
+		/// <summary>
+		/// Démarre OpenVR, puis initialise nos bindings (SteamVR + action set).
+		///
+		/// <para>
+		/// L'initialisation des bindings se fait ici et non à la construction du provider : les
+		/// actions SteamVR n'existent qu'une fois le runtime démarré. Et comme nox.xr démarre la XR
+		/// avant l'initialiseur principal de ce mod, <c>_binding</c> peut encore être nul à ce
+		/// moment — c'est ce qui provoquait le <c>NullReferenceException</c> qui faisait échouer ce
+		/// provider au profit du repli générique.
+		/// </para>
+		/// </summary>
 		public async UniTask<bool> Initialize() {
-    		if (!await XRManagementLoader.StartAsync<OpenVRLoader>())
-        		return false;
-    		await _binding.Initialize();    
-    		return true;
+			if (!await XRManagementLoader.StartAsync<OpenVRLoader>())
+				return false;
+
+			_started = true;
+			await EnsureBindings().Initialize();
+			return true;
 		}
 
+		/// <summary>
+		/// Arrête OpenVR, puis vide nos bindings : ils pointent sur des actions liées aux devices
+		/// que XR Plug-in Management vient de détruire.
+		/// </summary>
 		public async UniTask Deinitialize() {
+			_started = false;
 			await XRManagementLoader.Stop();
-			await _binding.Deinitialize();
+
+			if (_binding != null)
+				await _binding.Deinitialize();
 		}
 	}
 }
