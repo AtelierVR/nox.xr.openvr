@@ -6,6 +6,7 @@ using Nox.CCK.XR;
 using Nox.XR.Bindings;
 using Nox.XR.Loaders;
 using Nox.XR.OpenVR.Bindings;
+using Nox.XR.Trackers;
 using Unity.XR.OpenVR;
 using UnityEngine.XR.Management;
 
@@ -14,9 +15,9 @@ namespace Nox.XR.OpenVR {
 	/// Loader OpenVR (SteamVR) pour nox.xr.
 	///
 	/// <para>
-	/// C'est le loader de repli de nox.xr sur Windows (OpenXR reste prioritaire) et le loader
-	/// utilisé sur Linux, où Unity ne fournit pas de plugin OpenXR. Le plugin Valve
-	/// <c>com.valvesoftware.unity.openvr</c> fournit le rendu ; l'input vient de SteamVR.
+	/// Utilisé sur Linux, où Unity ne fournit pas de plugin OpenXR. <b>Sous Windows il est refusé</b> :
+	/// nox.xr y tourne exclusivement sous OpenXR (<c>nox.xr.openxr</c>), donc plus aucun repli OpenVR.
+	/// Le plugin Valve <c>com.valvesoftware.unity.openvr</c> fournit le rendu ; l'input vient de SteamVR.
 	/// </para>
 	///
 	/// <para>
@@ -77,6 +78,14 @@ namespace Nox.XR.OpenVR {
 		public IBinding Binding
 			=> _binding;
 
+		/// <summary>
+		/// Aucun tracker propre : sous OpenVR les trackers génériques sont déjà des devices XR communs,
+		/// donc le repli générique de nox.xr suffit (et sous Windows ce loader ne pilote de toute façon
+		/// pas la XR : OpenXR s'en charge).
+		/// </summary>
+		public ITrackerProvider Trackers
+			=> null;
+
 		/// <summary>Priorité du loader OpenVR : sous OpenXR (20), au-dessus du repli générique (0).</summary>
 		public const int DefaultPriority = 10;
 
@@ -112,11 +121,13 @@ namespace Nox.XR.OpenVR {
 			=> IsAvailable;
 
 		/// <summary>
-		/// Le plugin OpenVR de Valve ne fournit de loader que pour Windows et Linux.
+		/// Plateformes pour lesquelles nox.xr accepte OpenVR : <b>Linux uniquement</b>. Windows est
+		/// réservé à OpenXR : le plugin Valve sait aussi y tourner, mais le mod refuse de le démarrer
+		/// pour qu'une session Windows ne repose jamais sur un autre runtime qu'OpenXR
+		/// (rôles de tracker, espace de jeu et extensions du jeu n'existent que là).
 		/// </summary>
 		public static bool IsPlatformSupported(Platform platform)
-			=> platform == Platform.Windows 
-				|| platform == Platform.Linux;
+			=> platform == Platform.Linux;
 
 		/// <summary>
 		/// Démarre OpenVR, puis initialise nos bindings (SteamVR + action set).

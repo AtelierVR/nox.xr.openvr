@@ -7,7 +7,7 @@
   ],
   "name": "XR OpenVR Loader",
   "version": "1.0.0",
-  "description": "OpenVR (SteamVR) loader for Nox XR (Windows, Linux).",
+  "description": "OpenVR (SteamVR) loader for Nox XR (Linux: Windows is OpenXR only).",
   "license": "GPL-3.0",
   "icon": null,
   "contact": {
