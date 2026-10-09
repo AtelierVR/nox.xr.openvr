@@ -34,6 +34,21 @@
       "id": "com.valvesoftware.unity.openvr",
       "type": "depends",
       "register": "git+https://github.com/ValveSoftware/unity-xr-plugin.git?path=/com.valve.openvr"
+    },
+    {
+      "id": "com.unity.modules.particlesystem",
+      "type": "depends",
+      "register": "upm+com.unity.modules.particlesystem@1.0.0"
+    },
+    {
+      "id": "com.unity.modules.vehicles",
+      "type": "depends",
+      "register": "upm+com.unity.modules.vehicles@1.0.0"
+    },
+    {
+      "id": "com.unity.modules.ai",
+      "type": "depends",
+      "register": "upm+com.unity.modules.ai@1.0.0"
     }
   ],
   "constraints": [
